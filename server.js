@@ -40,7 +40,7 @@ const dbConfig = {
 	port: 5432,
 	database: 'football_db',
 	user: 'aanvi',
-	password: 'mfysit'
+	password: 'myfinger'
 };
 
 let db = pgp(dbConfig);
@@ -67,28 +67,29 @@ app.get('/register', function(req, res) {
 
 /*Add your other get/post request handlers below here: */
 app.get('/home', function(req, res) {
-	var query = 'select * from favorite_colors;';
-	db.any(query)
-        .then(function (rows) {
-            res.render('pages/home',{
-				my_title: "Home Page",
-				data: rows,
-				color: '',
-				color_msg: ''
-			})
-
-        })
-        .catch(function (err) {
-            // display error message in case an error
-            console.log('error', err); //if this doesn't work for you replace with console.log
-            res.render('pages/home', {
-                title: 'Home Page',
-                data: '',
-                color: '',
-                color_msg: ''
-            })
-        })
+var query = 'select * from favorite_colors;';
+db.any(query)
+  .then(function (rows) {
+      res.render('pages/home',{
+  my_title: "Home Page",
+  data: rows,
+  color: '',
+  color_msg: ''
+})
+  })
+  .catch(function (err) {
+      // display error message in case an error
+      req.flash('error', err); //if this doesn't work for you replace with console.log
+      res.render('pages/home', {
+          title: 'Home Page',
+          data: '',
+          color: '',
+          color_msg: ''
+      })
+  })
 });
+
+
 
 app.get('/home/pick_color', function(req, res) {
 	var color_choice = req.query.color_selection;
@@ -110,7 +111,7 @@ app.get('/home/pick_color', function(req, res) {
     })
     .catch(error => {
         // display error message in case an error
-            req.flash('error', error);//if this doesn't work for you replace with console.log
+            console.log('error', error);//if this doesn't work for you replace with console.log
             res.render('pages/home', {
                 title: 'Home Page',
                 data: '',
@@ -145,7 +146,7 @@ app.post('/home/pick_color', function(req, res) {
     })
     .catch(error => {
         // display error message in case an error
-            req.flash('error', error); //if this doesn't work for you replace with console.log
+            console.log('error', error); //if this doesn't work for you replace with console.log
             res.render('pages/home', {
                 title: 'Home Page',
                 data: '',
@@ -155,11 +156,98 @@ app.post('/home/pick_color', function(req, res) {
     });
 });
 
+app.get('/team_stats',function(req,res){
+var dateQ1 = " SELECT * FROM football_games WHERE game_date > to_date('20180801','YYYYMMDD') AND game_date < to_date('20181231','YYYYMMDD');";
+var dateQ2 = " SELECT COUNT(*) FROM football_games WHERE game_date > to_date('20180801','YYYYMMDD') AND game_date < to_date('20181231','YYYYMMDD') AND home_score > visitor_score;";
+var dateQ3 = " SELECT COUNT(*) FROM football_games WHERE game_date > to_date('20180801','YYYYMMDD') AND game_date < to_date('20181231','YYYYMMDD') AND home_score < visitor_score;";
+db.task('get-everything', task => {
+  return task.batch([
+    task.any(dateQ1),
+    task.any(dateQ2),
+    task.any(dateQ3)
+  ]);
+})
+.then(data => {
+  res.render('pages/team_stats',{
+      my_title: "Team Stats",
+      games: data[0],
+      wins: data[1][0].count,
+      losses: data[2][0].count
+    })
+})
+.catch(err => {
+  // display error message in case an error
+    console.log('error',err);
+    request.flash('error', err);
+    res.render('pages/team_stats',{
+      my_title: "Team Stats",
+      games: '',
+      wins: '',
+      losses: ''
+    })
+});
+});
+
+app.get('/player_info',function(req,res){
+	var getIDquery = " SELECT id,name FROM football_players;";
+	db.any(getIDquery)
+    .then(function (rows) {
+        res.render('pages/player_info',{
+			my_title: "Player Info",
+			players: rows,
+		})
+
+    })
+    .catch(function (err) {
+        // display error message in case an error
+        request.flash('error', err);
+        res.render('pages/player_info',{
+			my_title: "Player Info",
+			players: '',
+		})
+	})
+});
+
+app.get('/player_info/select_player',function(req,res){
+	player_id = req.query.player_choice;
+	console.log(player_id);
+	var getIN_Query = " SELECT id,name FROM football_players;";
+	var getI_2 = " SELECT * from football_players WHERE id = " + player_id + ";";
+	var getI_3 = "SELECT COUNT(*) FROM football_games WHERE " + player_id + " = football_games.players[1] OR " +  player_id + " = football_games.players[2] OR " +  player_id + " = football_games.players[3] OR " +  player_id + " = football_games.players[4] OR " +  player_id + " = football_games.players[5];";
+	db.task('get-everything', task => {
+		return task.batch([
+			task.any(getIN_Query),
+			task.any(getI_2),
+			task.any(getI_3)
+		]);
+	})
+	.then(data => {
+		res.render('pages/player_info',{
+				my_title: "Player Info",
+				players: data[0],
+				curr_player: data[1][0],
+				games_played: data[2][0].count
+			})
+	})
+
+	.catch(err => {
+		// display error message in case an error
+			console.log('error',err);
+			res.render('pages/player_info',{
+				my_title: "Player Info",
+				players: '',
+				curr_player: '',
+				games_played: ''
+			})
+	});
+});
+
 /*********************************
 
   		/home - get request (no parameters)
   				This route will make a single query to the favorite_colors table to retrieve all of the rows of colors
   				This data will be passed to the home view (pages/home)
+
 
   		/home/pick_color - post request (color_message)
   				This route will be used for reading in a post request from the user which provides the color message for the default color.
